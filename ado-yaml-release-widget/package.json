@@ -1,0 +1,20 @@
+{
+  "name": "ado-yaml-release-widget",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "webpack --config webpack.config.js"
+  },
+  "dependencies": {
+    "azure-devops-extension-sdk": "^2.0.0",
+    "azure-devops-extension-api": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.0.0",
+    "webpack": "^5.0.0",
+    "webpack-cli": "^4.0.0",
+    "ts-loader": "^9.0.0",
+    "css-loader": "^6.0.0",
+    "style-loader": "^3.0.0",
+    "html-webpack-plugin": "^5.0.0"
+  }
+}
