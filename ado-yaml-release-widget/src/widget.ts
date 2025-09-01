@@ -1,6 +1,5 @@
 import * as SDK from "azure-devops-extension-sdk";
 import { getClient, CommonServiceIds, IProjectPageService } from "azure-devops-extension-api";
-import { PipelinesRestClient } from "azure-devops-extension-api/Pipelines";
 import { BuildRestClient } from "azure-devops-extension-api/Build";
 
 type CustomSettings = { pipelineId?: number; runsToShow?: number };
@@ -9,7 +8,8 @@ SDK.register("yaml-release-overview-widget", () => {
   return {
     load: async (settings: any, _size: any) => {
       SDK.init({ loaded: true });
-      const host = await SDK.ready();
+      await SDK.ready();
+      const hostCtx = SDK.getHost();
       const projectSvc = await SDK.getService<IProjectPageService>(CommonServiceIds.ProjectPageService);
       const proj = await projectSvc.getProject();
 
@@ -20,19 +20,37 @@ SDK.register("yaml-release-overview-widget", () => {
         return;
       }
 
-      const pipelinesClient = await getClient(PipelinesRestClient);
       const buildClient = await getClient(BuildRestClient);
-      const runList = await pipelinesClient.listRuns(proj!.name!, custom.pipelineId, { top: runsToShow });
+      const builds = await buildClient.getBuilds(
+        proj!.name!,
+        [custom.pipelineId],
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        runsToShow
+      );
 
-      const items = [];
-      for (const run of runList.value ?? []) {
-        const timeline = await buildClient.getBuildTimeline(proj!.name!, run.id);
-        const stages = (timeline?.records ?? []).filter(r => r.type === "Stage");
-        const stageBadges = stages.map(s => badge(s.name!, s.result ?? s.state ?? "unknown")).join(" ");
-        items.push(`<li><a href="${run._links?.web?.href}">Run #${run.id}</a> ${statusPill(run.state, run.result)} ${new Date(run.createdDate!).toLocaleString()}<div>${stageBadges}</div></li>`);
+      const items: string[] = [];
+      for (const build of builds) {
+        try {
+          const timeline = await buildClient.getBuildTimeline(proj!.name!, build.id);
+          const stages = (timeline?.records ?? []).filter(r => r.type === "Stage");
+          const stageBadges = stages.map(s => badge(s.name!, String(s.result ?? s.state ?? "unknown"))).join(" ");
+          const created = (build.queueTime || build.startTime || build.finishTime) ? new Date((build.queueTime || build.startTime || build.finishTime)!).toLocaleString() : "";
+          items.push(`<li><a href="${build._links?.web?.href}">Build #${build.id}</a> ${statusPill(String(build.status), String(build.result))} ${created}<div>${stageBadges}</div></li>`);
+        } catch {
+          items.push(`<li>Build #${build.id} (error loading timeline)</li>`);
+        }
       }
 
-      render(`<div class="header"><strong>Pipeline:</strong> <a href="${host.host.uri}${proj!.name}/_build?definitionId=${custom.pipelineId}">${custom.pipelineId}</a></div><ul class="runs">${items.join("") || "<li>No recent runs.</li>"}</ul>`);
+      render(`<div class="header"><strong>Pipeline:</strong> <a href="${hostCtx?.name ? hostCtx.name : ""}${proj!.name}/_build?definitionId=${custom.pipelineId}">${custom.pipelineId}</a></div><ul class="runs">${items.join("") || "<li>No recent builds.</li>"}</ul>`);
     },
     reload: async (_settings: any) => {}
   };
